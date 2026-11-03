@@ -3049,8 +3049,8 @@
     const mid = [row('Rarity', RARITY[n], col)]; if (num(d.tier)) mid.push(row('Tier', num(d.tier))); if (num(d.refine)) mid.push(row('Refinement', '+' + num(d.refine)));
     h += '<div class="gts">' + mid.join('') + '</div>';
     if (e.w !== undefined || e.im) { const ex = []; if (e.im) ex.push('<div class="gtl">Imbuements <span>0 / ' + e.im + ' · Temporary</span></div>' + Array.from({ length: e.im }, () => '<div class="gtr"><span>□ Empty slot</span></div>').join('')); if (e.w !== undefined) ex.push(row('Weight', Number(e.w).toFixed(2) + ' oz')); h += '<div class="gts">' + ex.join('') + '</div>'; }
-    const sk = (d.attrs || []).slice(0, n).filter((a) => a && a.k && SOCK[a.k]), bs = (d.base || []).filter((a) => a && a.k && SOCK[a.k]);
-    if (bs.length) h += '<div class="gts"><div class="gtl">Base bonus</div>' + bs.map((a) => row(esc(SOCK[a.k][0]), '+' + num(a.v))).join('') + '</div>';
+    const sk = (d.attrs || []).slice(0, n).filter((a) => a && a.k && SOCK[a.k]), bs0 = (d.base || []).filter((a) => a && a.k && SOCK[a.k]), ibb = ITEMBASE[d.item] && ITEMBASE[d.item].base, bs = bs0.length ? bs0 : (ibb || []).filter((a) => a && a.k && SOCK[a.k]);
+    if (bs.length) h += '<div class="gts"><div class="gtl">Base bonus</div>' + bs.map((a) => { const lb = SOCK[a.k][0], v = num(a.v); return row(esc(lb), (v > 0 ? '+' : '') + v + (lb.indexOf('%') >= 0 ? '%' : ''), v < 0 ? '#e0504a' : ''); }).join('') + '</div>';
     if (n) h += '<div class="gts"><div class="gtl">Sockets <span>' + sk.length + ' / ' + n + '</span></div>' + (sk.length ? sk.map((a) => '<div class="gtr"><span><i style="background:' + col + '"></i>' + esc(SOCK[a.k][0]) + '</span><b>+' + num(a.v) + '</b></div>').join('') : '<div class="gtr"><span>Empty sockets</span></div>') + '</div>';
     const vm = VOCMAP[d.item], who = !vm || vm === 'A' ? 'All vocations' : VOCS.filter((x) => vm.includes(x === 'Sorcerer' ? 'S' : x[0])).map((x) => x + 's').join(', ');
     return h + '<div class="gtf">Equipped by: <b>' + esc(who) + '</b></div>';
@@ -3142,7 +3142,7 @@
         const ln = (k, m) => { const d = dl(m); return '<span class="cwr"><span class="eic" style="color:' + EICON[k][1] + '">' + EICON[k][0] + '</span><span class="enm">' + ELN[k] + '</span><span class="ev ' + (m <= 0.001 ? 'g-bad' : d > 0 ? 'g-good' : d < 0 ? 'g-bad' : '') + '">' + (m <= 0.001 ? 'Immune' : d > 0 ? '+' + d + '%' : d < 0 ? '−' + Math.abs(d) + '%' : 'Normal') + '</span></span>'; };
         const wk = rows.filter((r) => r[1] > 1.004).sort((x, y) => y[1] - x[1]), rs2 = rows.filter((r) => r[1] < 0.996).sort((x, y) => x[1] - y[1]), nu = rows.filter((r) => r[1] >= 0.996 && r[1] <= 1.004);
         const grp = wkMobs.length ? wkMobs : mobList, hpT = grp.reduce((t, m) => t + (m.hp || 0), 0), xpT = grp.reduce((t, m) => t + (m.xp || 0), 0), nf = (n) => n.toLocaleString((window.TIBI_LANG || {}).locale);
-        return '<span class="cwk"><span class="cwkh">Enemies, press one for its weakness</span><span class="cwkm"><button type="button" class="cmob' + (wkSl ? '' : ' on') + '" data-cwk="' + esc(p.id) + '|" title="All together">All</button>' + mobList.map((m) => '<button type="button" class="cmob' + (wkSl === m.slug ? ' on' : '') + '" data-cwk="' + esc(p.id) + '|' + m.slug + '" title="' + esc(m.name) + '">' + mobImg(m.slug, 'cmobimg big') + '</button>').join('') + '</span>'
+        return '<span class="cwk"><span class="cwkh">Enemies, press one for its weakness (press again for all together)</span><span class="cwkm">' + mobList.map((m) => '<button type="button" class="cmob' + (wkSl === m.slug ? ' on' : '') + '" data-cwk="' + esc(p.id) + '|' + m.slug + '" title="' + esc(m.name) + '">' + mobImg(m.slug, 'cmobimg big') + '</button>').join('') + '</span>'
           + '<span class="cwst"><span class="cwtitle">' + (wkSl && grp[0] ? esc(grp[0].name) : 'All together') + '</span><span><i style="color:#e0504a">♥</i> <b>' + nf(hpT) + '</b> <small>Health</small></span><span><i style="color:#a58cff">★</i> <b>' + nf(xpT) + '</b> <small>Exp</small></span></span>'
           + (wk.length ? '<span class="cwkt g">Weak against</span>' + wk.map((r) => ln(r[0], r[1])).join('') : '') + (rs2.length ? '<span class="cwkt b">Resists</span>' + rs2.map((r) => ln(r[0], r[1])).join('') : '') + (nu.length ? '<span class="cwkt n">Neutral</span>' + nu.map((r) => ln(r[0], r[1])).join('') : '') + '</span>';
       };
@@ -3162,7 +3162,7 @@
   }
   $('comQ').addEventListener('input', renderCom); $('comLvl').addEventListener('input', renderCom); $('comHunt').addEventListener('change', renderCom); $('comSort').addEventListener('change', renderCom);
   $('comList').addEventListener('click', async (e) => {
-    const wb = e.target.closest('[data-cwk]'); if (wb) { const [pid, sl] = wb.dataset.cwk.split('|'); COM.wk = COM.wk || {}; COM.wk[pid] = sl; renderCom(); return; }
+    const wb = e.target.closest('[data-cwk]'); if (wb) { const [pid, sl] = wb.dataset.cwk.split('|'); COM.wk = COM.wk || {}; COM.wk[pid] = COM.wk[pid] === sl ? '' : sl; renderCom(); return; }
     const card = e.target.closest('.comit');
     if (card && !e.target.closest('button') && card.dataset.cid) { COM.open[card.dataset.cid] = !COM.open[card.dataset.cid]; renderCom(); return; }
     const b = e.target.closest('button'); if (!b || !COM.db) return;
