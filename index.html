@@ -3416,11 +3416,11 @@
     const D = window.TIBI_THEME_DATA || { TH: {}, FR: {} };
     const b = document.getElementById('hwBtn'); if (!b) return;
     const NEW = ['easter', 'valentine', 'frost', 'beach', 'autumn', 'bday', 'lucia'], body = document.body, cls = { hween: 'hween', grim: 'grim', xmas: 'xmas', mids: 'mids' }; NEW.forEach(k => { cls[k] = k; });
-    const LIST = [['none', 'Classic', ''], ['hween', 'Halloween', ''], ['grim', 'Halloween: Pumpkin Grimoire', ''], ['xmas', 'Christmas', 'xmas'], ['mids', 'Swedish Midsummer', 'mids'], ['easter', 'Easter', ''], ['valentine', "Valentine's", ''], ['frost', 'Winter Frost', ''], ['beach', 'Beach Summer', ''], ['autumn', 'Autumn Harvest', ''], ['bday', 'Tibidle Birthday', ''], ['lucia', 'Swedish Lucia', '']];
+    const LIST = [['none', 'Classic', ''], ['hween', 'Halloween', '']];
     const hwSrc = b.querySelector('img') ? b.querySelector('img').src : '';
-    let cur = 'hween';
-    try { const v = localStorage.getItem('tibidle.theme'); if (v) cur = v; else if (localStorage.getItem('tibidle.hween') === '0') cur = 'none'; } catch (e) { /* ignore */ }
-    if (!LIST.some(x => x[0] === cur)) cur = 'hween';
+    let cur = 'none';
+    try { const v = localStorage.getItem('tibidle.theme'); if (v) cur = v; } catch (e) { /* ignore */ }
+    if (!LIST.some(x => x[0] === cur)) cur = 'none';
     document.querySelectorAll('.hwdeco').forEach(i => { i.dataset.o = i.src; });
     const fx = document.createElement('div'); fx.className = 'thfx'; fx.setAttribute('aria-hidden', 'true'); body.appendChild(fx);
     const menu = document.createElement('div'); menu.id = 'thMenu'; menu.setAttribute('role', 'menu'); body.appendChild(menu);
