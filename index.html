@@ -2921,6 +2921,11 @@
             },
             doc(id) {
               return {
+                async edit(o) {
+                  const pw = COM.owner ? admPw() : '';
+                  const ok = await rpc('edit_post', { p_id: id, p_secret: mySecret, pw, p_name: o.name, p_hunt: o.hunt, p_level: o.level || '', p_notes: o.notes || '', p_tested: o.tested || '', p_data: o.data, p_gear: o.gear || '', p_res: o.res || '' });
+                  if (!ok) throw new Error('not yours'); refresh();
+                },
                 async delete() { if (COM.owner && admPw()) await rpc('admin_delete', { pw: admPw(), p_id: id }); else if (!(await rpc('delete_own_post', { p_id: id, p_secret: mySecret }))) throw new Error('not yours'); refresh(); },
                 async update(o) { if ('hidden' in o) await rpc('admin_set_hidden', { pw: admPw(), p_id: id, p_hide: !!o.hidden }); else if ('reports' in o) await rpc('report_post', { p_id: id }); refresh(); },
               };
@@ -2991,10 +2996,14 @@
       const rs = { e: clip(($('comExp') || {}).value || '', 12), p: clip(($('comProfit') || {}).value || '', 12) };
       const hasRes = Object.values(rs).some((x) => String(x).trim()); const lq = lureOf(r.hunt, r.lure); if (lq) rs.l = lq.k; const hasRes2 = hasRes || !!lq;
       const gs = gearSnap();
-      await COM.db.collection('posts').add({ res: hasRes2 ? JSON.stringify(rs) : '', gear: gs ? JSON.stringify(gs) : '', name: clip(r.name, 60), hunt: r.hunt, level: clip(r.level, 40), notes: clip(r.notes, 600), tested: clip(tested, 120), author: COM.me || '', authorName: clip(nm, 30), t: Date.now(), hidden: false, reports: 0, data: JSON.stringify(r.cu) });
+      const body = { res: hasRes2 ? JSON.stringify(rs) : '', gear: gs ? JSON.stringify(gs) : '', name: clip(r.name, 60), hunt: r.hunt, level: clip(r.level, 40), notes: clip(r.notes, 600), tested: clip(tested, 120), author: COM.me || '', authorName: clip(nm, 30), t: Date.now(), hidden: false, reports: 0, data: JSON.stringify(r.cu) };
+      let edited = false;
+      if (r.editOf) { try { await COM.db.collection('posts').doc(r.editOf).edit(body); edited = true; } catch (e4) { /* the edit function may not be set up yet: post anew and remove the old one instead */ } }
+      if (!edited) await COM.db.collection('posts').add(body);
       let replaced = false;
-      if (r.editOf) { try { await COM.db.collection('posts').doc(r.editOf).delete(); replaced = true; } catch (e3) { /* the old post stays if it could not be removed */ } r.editOf = ''; saveRot(); }
-      msg(replaced ? 'Updated. Your edited post replaced the old one.' : !gs ? 'Posted, but without gear: no items are set in your Build tab yet.' : 'Posted. It now shows in the Community tab.');
+      if (r.editOf && edited) { replaced = true; r.editOf = ''; saveRot(); }
+      else if (r.editOf) { try { await COM.db.collection('posts').doc(r.editOf).delete(); replaced = true; } catch (e3) { /* the old post stays if it could not be removed */ } r.editOf = ''; saveRot(); }
+      msg(replaced ? (edited ? 'Updated. The same post now shows your changes, votes kept.' : 'Updated. Your edited post replaced the old one.') : !gs ? 'Posted, but without gear: no items are set in your Build tab yet.' : 'Posted. It now shows in the Community tab.');
     } catch (e) { try { console.error('post failed', e); } catch (x) { /* ignore */ } msg(e && e.code === 'not_granted' ? 'You need edit access to post.' : e && /slow down/.test(e.detail || '') ? 'You are posting too fast. Wait a minute and try again.' : e && /daily limit/.test(e.detail || '') ? 'You reached the limit of posts for today.' : 'Could not post. Try again in a moment. [' + String((e && (e.code || e.message)) || 'unknown').slice(0, 80) + ']'); }
   }
   // ---- shared gear: snapshot, safe copy, and the game-style picture
@@ -3166,7 +3175,7 @@
       if (b.dataset.cedit) {
         const r = postRot_(p); if (!r) return; r.editOf = p.id; let rs0 = null; try { rs0 = p.res ? JSON.parse(p.res) : null; } catch (e2) { rs0 = null; }
         addRot(r); if (p.gear) useGear(p); showView('rot'); renderRot();
-        const fill = (id, v) => { const el = $(id); if (el && v != null) el.value = v; }; fill('comExp', rs0 && rs0.e); fill('comProfit', rs0 && rs0.p); fill('comTested', p.tested || '');
+        const fill = (id, v) => { const el = $(id); if (el && v != null) el.value = v; }; fill('comExp', rs0 && rs0.e); fill('comProfit', rs0 && rs0.p); fill('comTested', p.tested || ''); fill('comName', p.authorName || '');
         const m = $('rActMsg'); if (m) m.textContent = 'Editing your post. Change what you want, then press Post to community. The old post is replaced.'; return;
       }
       if (b.dataset.cadd) { const r = postRot_(p); if (r) { addRot(r); showView('rot'); } return; }
