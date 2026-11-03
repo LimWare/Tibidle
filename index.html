@@ -1467,7 +1467,8 @@
 
   // ---------- picker ----------
   const hunts = {};
-  DATA.forEach((c) => c.where.forEach((w) => { (hunts[w.hunt] = hunts[w.hunt] || new Set()).add(c.slug); }));
+  const HUNT_ALIAS = { 'Warzone III': 'Warzone III - Crystal Caves', 'Warzone III (Crystal Caves)': 'Warzone III - Crystal Caves', "Quara's entrance": "Quara's entrance Yalahar", "Quara's Domain": "Quara's Domain Yalahar" };
+  DATA.forEach((c) => c.where.forEach((w) => { const hn = HUNT_ALIAS[w.hunt] || w.hunt; (hunts[hn] = hunts[hn] || new Set()).add(c.slug); }));
   Object.keys(hunts).filter((x) => x !== 'Not collected yet').sort((a, b) => a.localeCompare(b)).forEach((h) => {
     const o = document.createElement('option');
     o.value = h; o.textContent = h + ' (' + hunts[h].size + ')';
