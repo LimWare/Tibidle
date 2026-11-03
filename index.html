@@ -3451,6 +3451,117 @@
     }
     return Object.entries(res).filter((e) => e[1] > -2).sort((a, b) => b[1] - a[1]).slice(0, 3);
   }
+  // ---- History > Per character screen (the "Preset" view of each class)
+  const IMPH_X = [[108, 184, 261, 337], [108, 189, 265, 341], [108, 184, 261, 337], [108, 184, 261, 337]];
+  const IMPH_CELLS = (c) => { const X = IMPH_X[c], o = [['hp', 'hp', X[0], 526], ['mp', 'mp', X[0], 626]]; for (let k = 0; k < 4; k++) o.push(['atk' + k, 'atk', X[1], 525 + 60.7 * k], ['def' + k, 'def', X[2], 525 + 60.7 * k]); for (let k = 0; k < 2; k++) o.push(['sup' + k, 'sup', X[3], 525 + 60.7 * k]); if (c === 1) o.push(['ammo', 'ammo', X[0], 729]); return o; };
+  function impHistLocate(I) {
+    const { d, W, H } = I, T = 4, hit = (x, y) => { const i = (y * W + x) * 4; return Math.abs(d[i] - 40) <= T && Math.abs(d[i + 1] - 44) <= T && Math.abs(d[i + 2] - 51) <= T; };
+    const xs = []; for (let x = 0; x < W; x++) { let n = 0, t = 0; for (let y = Math.round(H * 0.5); y < H * 0.95; y += 5) { t++; if (hit(x, y)) n++; } if (n > t * 0.7) xs.push(x); }
+    const cl = []; xs.forEach((x) => { const l = cl[cl.length - 1]; if (l && x - l[1] <= 2) l[1] = x; else cl.push([x, x]); });
+    const near = (v) => cl.find((c) => Math.abs(c[0] - v) <= 3);
+    for (let i = 0; i < cl.length; i++) for (let k = i + 1; k < cl.length; k++) {
+      const l0 = cl[i][0], l1 = cl[k][0], P = l1 - l0; if (P < 300) continue;
+      const l2 = near(l0 + 2 * P), l3 = near(l0 + 3 * P); if (!l2 || !l3) continue;
+      const rOf = (L, lim) => { let r = null; cl.forEach((c) => { if (c[1] > L + 100 && c[1] < lim - 5) r = c[1]; }); return r; };
+      const r0 = rOf(l0, l1), w = r0 - l0; if (!r0 || w < 300 || w > P - 5) continue;
+      const ps = [[l0, r0], [l1, l1 + w], [l2[0], l2[0] + w], [l3[0], l3[0] + w]], s = w / 445, x = l0 + Math.round(60 * s); let top = -1;
+      for (let y = Math.round(H * 0.2); y < H * 0.6; y++) { if (hit(x, y)) { const j = ((y + 3) * W + x) * 4; if (d[j] > d[j + 1] + 12) { top = y; break; } } }
+      if (top < 0) continue; return { s, ps, top };
+    }
+    return null;
+  }
+  const IMPH_DIG = {"3": ["1111111001000010011000001000011100111111"], "0": ["0011101100011000110001111011110110000111", "0011101100011000110001111111110110000111", "0011101110011000110011111111111111000111"], "1": ["0111111111111110011100111001110011111111", "1110011100011000110001100011000110011111"], "5": ["0011100100001000011110110100001110000111", "0111101100011000111101100000000110001111"], "2": ["0011101100000000000010001100111011001111", "0111111001000010001100011011101110011111", "1111000110001100011001100110001000011111", "1111010011000110001100110011001100011111"], "8": ["1111000110001111110000111000110011111110", "1111010011100111111010011100111001111110"], "6": ["0001100111001100111111110111001111000111", "0011101110011001111111101110001110101111"], "4": ["0011100111011111101111011111110001100011"], "7": ["0111101100011010000100001000110001100110"], "9": ["1110001111001110111111110011001110011000", "1111010111000111011111111001100111011100"]};
+  function impHistText(I, cx, cy, s, kind) {
+    const { d, W } = I, x0 = Math.round(cx - 27 * s), y0 = Math.round(cy + 21 * s), w = Math.round(55 * s), h = Math.round(13 * s);
+    const mk = new Float32Array(w * h); let any = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = ((y0 + y) * W + x0 + x) * 4, r = d[i], g = d[i + 1], b = d[i + 2]; if (r > 140 && g > 90 && b < 140 && r - b > 60) { mk[y * w + x] = 1; any++; } }
+    if (any < 6 * s * s) return { txt: '' };
+    const M = impAreaAvg(mk, w, h, 55, 13), B = (x, y) => (x >= 0 && x < 55 && y >= 0 && y < 13 && M[y * 55 + x] > 0.35 ? 1 : 0);
+    let xa = 55, xb = -1, ya = 13, yb = -1;
+    for (let y = 0; y < 13; y++) for (let x = 0; x < 55; x++) if (B(x, y)) { if (x < xa) xa = x; if (x > xb) xb = x; if (y < ya) ya = y; if (y > yb) yb = y; }
+    if (xb < 0) return { txt: '' };
+    const Wd = xb - xa + 1; let bar = 0; for (let x = xa; x < xa + 9; x++) if (B(x, yb) && B(x, yb - 1)) bar++;
+    if (bar < 6 || Wd < 11) return { txt: kind === 'sup' ? '' : 'off', Wd };
+    const le = Wd > 19;
+    const nd = Math.max(1, Math.min(3, le ? Math.round((Wd - 17) / 6.5) : Math.round((Wd - 9.5) / 6)));
+    let txt = '';
+    for (let i = 0; i < nd; i++) {
+      const end = xb - (le ? 10 : 0) - 6 * (nd - 1 - i); let best = null;
+      Object.keys(IMPH_DIG).forEach((ch) => IMPH_DIG[ch].forEach((sm) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        let dist = Math.abs(dx) + Math.abs(dy);
+        for (let r = 0; r < 8; r++) for (let c = 0; c < 5; c++) if (B(end - 4 + c + dx, yb - 7 + r + dy) !== +sm[r * 5 + c]) dist++;
+        if (!best || dist < best[0]) best = [dist, ch]; } }));
+      txt += best ? best[1] : '?';
+    }
+    return { txt: (le ? '≤' : '≥') + txt + (le ? '%' : ''), Wd };
+  }
+
+  // hunt area: the creature pictures drawn right after the hunt title
+  let IMPH_CR = null;
+  async function impHistHunt(I, L) {
+    const { d, W } = I, top = L.top, s = L.s, y0 = Math.round(top - 200 * s), y1 = Math.round(top - 125 * s);
+    let xe = -1, gap = 0;
+    for (let x = Math.round(10 * s); x < W * 0.62; x++) { let n = 0; for (let y = y0; y < y1; y++) { const i = (y * W + x) * 4; if (d[i] > 225 && d[i + 1] > 225 && d[i + 2] > 225) n++; } if (n >= 3) { xe = x; gap = 0; } else if (xe > 0 && ++gap > 55 * s) break; }
+    if (xe < 0) return null;
+    if (!IMPH_CR) { IMPH_CR = []; for (const sl of Object.keys(window.TIBI_ART.mob || {})) { const im = await impLoadImg(window.TIBI_ART.mob[sl]); if (!im) continue; const cv = document.createElement('canvas'); cv.width = 32; cv.height = 32; const g = cv.getContext('2d', { willReadFrequently: true }); g.imageSmoothingQuality = 'high'; g.drawImage(im, 0, 0, 32, 32); const dd = g.getImageData(0, 0, 32, 32).data, m = new Float32Array(1024); let a = 0; for (let i = 0; i < 1024; i++) { m[i] = dd[i * 4 + 3] > 40 ? 1 : 0; a += m[i]; } IMPH_CR.push({ sl, m, a }); } }
+    // find colourful blobs (the pictures) right of the title and compare their silhouettes
+    const bx0 = xe + Math.round(15 * s), bx1 = Math.min(W, bx0 + Math.round(190 * s)), found = [];
+    const sat = (x, y) => { const i = (y * W + x) * 4, mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]); return mx > 70 && (mx - mn) > 55; };
+    const ya = Math.round(top - 215 * s), yb = Math.round(top - 105 * s);
+    const colHas = []; for (let x = bx0; x < bx1; x++) { let n = 0; for (let y = ya; y < yb; y++) if (sat(x, y)) n++; colHas.push(n > 2); }
+    const blobs = []; let st = -1, last = -9; colHas.forEach((h, k) => { if (h) { if (st < 0) st = k; last = k; } else if (st >= 0 && k - last > 6 * s) { if (last - st > 14 * s) blobs.push([st + bx0, last + bx0]); st = -1; } }); if (st >= 0 && last - st > 14 * s) blobs.push([st + bx0, last + bx0]);
+    for (const [xa, xb] of blobs.slice(0, 3)) {
+      let ya2 = yb, yb2 = ya; for (let y = ya; y < yb; y++) for (let x = xa; x <= xb; x++) if (sat(x, y)) { if (y < ya2) ya2 = y; if (y > yb2) yb2 = y; }
+      const bw = xb - xa + 1, bh = yb2 - ya2 + 1, side = Math.max(bw, bh), q = new Float32Array(1024); let qa = 0;
+      for (let j = 0; j < 32; j++) for (let i = 0; i < 32; i++) { const sx = Math.round(xa + (i + 0.5) / 32 * side - (side - bw) / 2), sy = Math.round(ya2 + (j + 0.5) / 32 * side - (side - bh) / 2); const v = sx >= xa && sx <= xb && sy >= ya2 && sy <= yb2 && sat(sx, sy) ? 1 : 0; q[j * 32 + i] = v; qa += v; }
+      let best = null; IMPH_CR.forEach((c) => { let inter = 0; for (let i = 0; i < 1024; i++) if (q[i] && c.m[i]) inter++; const sc = inter / (qa + c.a - inter + 1e-9); if (!best || sc > best[0]) best = [sc, c.sl]; });
+      if (best && best[0] > 0.3) found.push(best[1]);
+    }
+    return found;
+  }
+  async function impParseHist(I, msg) {
+    const L = impHistLocate(I); if (!L) return null; const { s } = L;
+    const potH = Object.keys(POT).filter((n) => /Health|Spirit/.test(n)), potM = Object.keys(POT).filter((n) => /Mana|Spirit/.test(n));
+    const eqLib = await impEqLib(), cols = [], ammoNames = AMMO.map((x) => x.name);
+    for (let c = 0; c < 4; c++) {
+      const voc = VOCS[c], l = L.ps[c][0], top = L.top, col = { voc, hp: null, mp: null, atk: [], def: [], sup: [], gear: {}, ammo: null };
+      const lists = { hp: potH, mp: potM, atk: SPELLS[voc].map((x) => x.name), def: DEFS[voc].map((x) => x.n), sup: SUPS[voc].map((x) => x.n), ammo: ammoNames };
+      const refs = {}; for (const k of Object.keys(lists)) { if (k === 'ammo') { if (c === 1) refs.ammo = Object.values(eqLib).filter((it) => it.s === 'ammo' && ammoNames.includes(it.n)).map((it) => ({ n: it.n, v: it.v })); continue; } refs[k] = await impRefs(lists[k]); }
+      msg('Reading ' + voc + '...');
+      for (const [name, kind, rx, ry] of IMPH_CELLS(c)) {
+        const cx = l + rx * s, cy = top + ry * s, isz = Math.round(36 * s);
+        let n = 0; const ix = Math.round(cx - 15 * s), iy = Math.round(cy - 15 * s), sz = Math.round(30 * s);
+        for (let j = 0; j < sz; j++) for (let i = 0; i < sz; i++) { const k = ((iy + j) * I.W + ix + i) * 4; if (Math.max(I.d[k], I.d[k + 1], I.d[k + 2]) > 150) n++; }
+        const filled = n > 18 * s * s;
+        const cell = { kind, name, filled, pick: '', score: 0, alts: [], t: 0, thumb: '', cands: lists[kind] };
+        if (filled) {
+          cell.thumb = impThumb(I, Math.round(cx - isz / 2), Math.round(cy - isz / 2), isz, isz, 48);
+          const pot = kind === 'hp' || kind === 'mp', sz2 = pot ? Math.round(36 * s) : isz, top3 = impBest(I, Math.round(cx - sz2 / 2), Math.round(cy - sz2 / 2), sz2, Math.max(1, Math.round(1.5 * s)), refs[kind], pot);
+          if (top3.length) { cell.pick = top3[0][0]; cell.score = top3[0][1]; cell.alts = top3; }
+          if (cell.score < 0.6) cell.low = true;
+          if (kind !== 'sup' && kind !== 'ammo') { const r = impHistText(I, cx, cy, s, kind), mm = /^(≤|≥)(\d+)/.exec(r.txt); cell.txt = r.txt; if (r.txt === 'off') cell.t = 0; else { cell.t = mm ? +mm[2] : 0; if (!mm) cell.low = true; } cell.off = r.txt === 'off' || !!(mm && +mm[2] === 0); }
+        }
+        if (kind === 'hp' || kind === 'mp' || kind === 'ammo') col[kind] = cell; else col[kind].push(cell);
+      }
+      const gx = l + 222.5 * s, gy = top + 177 * s;
+      for (const [sl, gc, gr] of IMP_GEAR) {
+        const cx = gx + (gc - 1) * 67.5 * s, cy = gy + gr * 67.5 * s, isz = Math.round(40 * s);
+        const ix = Math.round(cx - isz / 2), iy = Math.round(cy - isz / 2);
+        const filled = sl !== 'back' && impBright(I, ix + Math.round(6 * s), iy + Math.round(6 * s), isz - Math.round(12 * s), isz - Math.round(12 * s)) > 130;
+        const g = { slot: sl, filled, pick: '', score: 0, alts: [], tier: 0, thumb: '' };
+        if (filled) {
+          g.thumb = impThumb(I, ix, iy, isz, isz, 48);
+          const kinds = impSlotKinds(sl), cands = Object.values(eqLib).filter((it) => !kinds || kinds.includes(it.s));
+          const top3 = impBest(I, ix, iy, isz, Math.max(1, Math.round(s)), cands.map((it) => ({ n: it.n, v: it.v })), false);
+          if (top3.length) { g.pick = top3[0][0]; g.score = top3[0][1]; g.alts = top3; }
+          if (g.score < 0.6) g.low = true;
+        }
+        col.gear[sl] = g;
+      }
+      cols.push(col);
+    }
+    return cols;
+  }
   async function impParse(I, msg) {
     const L = impLayout(I); if (!L) return null; const { s } = L;
     const potH = Object.keys(POT).filter((n) => /Health|Spirit/.test(n)), potM = Object.keys(POT).filter((n) => /Mana|Spirit/.test(n));
@@ -3566,20 +3677,20 @@
   const impSel = (cands, pick, withEmpty) => '<select data-ipick>' + '<option value="">— empty —</option>' + cands.map((n) => '<option value="' + esc(n) + '"' + (n === pick ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select>';
   function impRow(cell, ci, key, idx, label, sym) {
     const ref = cell.pick ? (iconImg(cell.pick) || '') : '';
-    const num = cell.kind === 'sup' ? '' : '<span class="impsym">' + sym + '</span><input type="number" class="impn" data-it min="0" max="100" value="' + (cell.t || '') + '">' + (sym === '≤' ? '<span class="impsym">%</span>' : '');
+    const num = cell.kind === 'sup' || cell.kind === 'ammo' ? '' : '<span class="impsym">' + sym + '</span><input type="number" class="impn" data-it min="0" max="100" value="' + (cell.t || '') + '">' + (sym === '≤' ? '<span class="impsym">%</span>' : '');
     return '<div class="improw' + (cell.low && cell.filled ? ' low' : '') + (cell.filled ? '' : ' none') + '" data-ic="' + ci + '|' + key + '|' + idx + '"><span class="impl">' + label + '</span>'
       + (cell.filled ? '<img class="impth" alt="" src="' + cell.thumb + '">' : '<span class="impth blank">+</span>') + '<span class="impref">' + ref + '</span>' + impSel(cell.cands, cell.pick) + num + '</div>';
   }
   function impReview() {
     const cols = IMPM.cols, itemsBySlot = {};
     EQ.forEach((it) => { Object.keys(IMP_ITEMSLOT).forEach((sl) => { if (IMP_ITEMSLOT[sl].includes(it.s)) (itemsBySlot[sl] = itemsBySlot[sl] || []).push(it.n); }); });
-    let h = '<p class="gnote">Check each line. Amber lines are the ones the page is least sure about. Nothing is saved until you press <b>Create preset</b>.</p>'
+    let h = (IMPM.hunt && !IMPM.bar && !IMPM.stack ? '<p class="gnote">Hunt area read from the creature pictures: <b>' + esc(IMPM.hunt) + '</b>. Could also be: ' + (IMPM.huntCands || []).filter((x) => x !== IMPM.hunt).map((x) => '<button type="button" class="btn ghost small" data-imphunt="' + esc(x) + '">' + esc(x) + '</button>').join(' ') + '</p>' : '') + '<p class="gnote">Check each line. Amber lines are the ones the page is least sure about. Nothing is saved until you press <b>Create preset</b>.</p>'
       + (IMPM.bar ? '<div class="impmeta"><label>This bar belongs to<select id="impVoc">' + VOCS.map((v) => '<option' + (v === IMPM.bar.voc ? ' selected' : '') + '>' + v + '</option>').join('') + '</select></label><label>Put it into<select id="impTarget"><option value="">A new preset</option>' + ROT.list.map((r) => '<option value="' + esc(r.id) + '"' + (r.id === IMPM.target ? ' selected' : '') + '>' + esc(r.name) + '</option>').join('') + '</select></label></div>' : '<div class="impmeta"><label>Preset name<input type="text" id="impName" maxlength="60" value="' + esc(IMPM.name) + '"></label><label>Hunt area (type to search)<input type="text" id="impHunt" list="rHuntsI" value="' + esc(IMPM.hunt) + '" placeholder="For example Hive Queen Chamber"></label></div>')
       + '<div class="impcols">';
     cols.forEach((c, ci) => {
       h += '<div class="impcol"><div class="imph2"><img alt="" src="' + window.TIBI_ART.icon[c.voc.toLowerCase()] + '">' + c.voc + '</div>'
         + '<div class="imps">Health and mana</div>' + impRow(c.hp, ci, 'hp', 0, 'HP', '≤') + impRow(c.mp, ci, 'mp', 0, 'MP', '≤')
-        + '<div class="imps">Attack</div>' + c.atk.map((x, i) => impRow(x, ci, 'atk', i, i + 1, '≥')).join('')
+        + (c.ammo ? '<div class="imps">Ammunition</div>' + impRow(c.ammo, ci, 'ammo', 0, 'AM', '') : '') + '<div class="imps">Attack</div>' + c.atk.map((x, i) => impRow(x, ci, 'atk', i, i + 1, '≥')).join('')
         + '<div class="imps">Defence</div>' + c.def.map((x, i) => impRow(x, ci, 'def', i, i + 1, '≤')).join('')
         + '<div class="imps">Support</div>' + c.sup.map((x, i) => impRow(x, ci, 'sup', i, i + 1, '')).join('')
         + (c.gear ? '<div class="imps">Gear</div>' : '') + IMP_GEAR.filter((g) => c.gear && g[0] !== 'back').map(([sl]) => {
@@ -3604,9 +3715,12 @@
     const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img._bm || img, 0, 0);
     const I = { c, W: c.width, H: c.height, d: x.getImageData(0, 0, c.width, c.height).data };
     if (I.W < 1000) { msg('This picture is too small (' + I.W + ' px wide). Use a full-size screenshot of the whole result screen.'); return; }
-    let cols = null; try { cols = await impParse(I, msg); } catch (e) { try { console.error(e); } catch (z) { /* ignore */ } cols = null; }
+    let cols = null, histOk = false; try { cols = await impParseHist(I, msg); histOk = !!cols; if (cols) { const L = impHistLocate(I), found = (await impHistHunt(I, L).catch(() => [])) || []; const sc2 = []; const nm0 = found[0] && BY.get(found[0]) ? BY.get(found[0]).name.toLowerCase() : '';
+        Object.keys(hunts).forEach((h) => { if (h === 'Not collected yet') return; const set = hunts[h]; let sc = 0; found.forEach((q, k) => { if (set.has(q)) sc += k === 0 ? 300 : 100; }); if (sc > 0) { if (nm0 && h.toLowerCase().includes(nm0.split(' ').slice(-2).join(' ').replace(/s$/, ''))) sc += 500; sc -= set.size; sc2.push([sc, h]); } });
+        sc2.sort((x, y) => y[0] - x[0]); const bh = sc2[0]; IMPM.huntCands = sc2.slice(0, 6).map((x) => x[1]); IMPM.hunt = bh ? bh[1] : ''; IMPM.seen = found; IMPM.name = bh ? bh[1] : 'Imported preset'; } } catch (e) { try { console.error(e); } catch (z) { /* ignore */ } cols = null; }
+    if (!cols) try { cols = await impParse(I, msg); } catch (e) { try { console.error(e); } catch (z) { /* ignore */ } cols = null; }
     IMPM.bar = null; IMPM.stack = false; if (!cols) { try { const b = await impParseBar(I, msg); if (b && b.stack) { IMPM.bar = null; IMPM.stack = true; cols = b.stack; } else if (b) { IMPM.bar = b; cols = [b.all[b.voc]]; } } catch (e) { try { console.error(e); } catch (z) { /* ignore */ } } }
-    if (!cols) { msg('I could not find the result screen or the skill bar. Use a clean screenshot of the "By character" result tab, or of the skill bar at the bottom of the game. Photos of a monitor cannot be read.'); return; }
+    if (!cols) { msg('I could not find the result screen or the skill bar. Use a clean full screenshot of History \u203a Per character with the Preset view open on all four classes, or of the skill bar at the bottom of the game. Photos of a monitor cannot be read.'); return; }
     IMPM.cols = cols; IMPM.name = IMPM.name || 'Imported preset'; impReview();
   }
   function impOpen() {
@@ -3616,6 +3730,7 @@
     document.body.appendChild(bg); IMPM.cols = null; impStart();
     bg.addEventListener('click', (e) => {
       if (e.target === bg) { bg.remove(); return; }
+      const hb = e.target.closest('[data-imphunt]'); if (hb) { IMPM.hunt = hb.dataset.imphunt; IMPM.name = hb.dataset.imphunt; impReview(); return; }
       const b = e.target.closest('[data-imp]'); if (!b) return; const k = b.dataset.imp;
       if (k === 'close') bg.remove(); else if (k === 'back') impStart(); else if (k === 'apply') impApply();
     });
@@ -3636,11 +3751,11 @@
   }
   function impCell(row) {
     if (row.dataset.ig) { const [ci, sl] = row.dataset.ig.split('|'); return IMPM.cols[+ci].gear[sl]; }
-    const [ci, key, idx] = row.dataset.ic.split('|'), c = IMPM.cols[+ci]; return key === 'hp' || key === 'mp' ? c[key] : c[key][+idx];
+    const [ci, key, idx] = row.dataset.ic.split('|'), c = IMPM.cols[+ci]; return key === 'hp' || key === 'mp' || key === 'ammo' ? c[key] : c[key][+idx];
   }
   function impStart() {
     IMPM.cols = null;
-    $('impBody').innerHTML = '<p class="gnote">Take a full screenshot of the hunt result screen on the <b>By character</b> tab (the one that shows all four classes with their gear and ability bars). Then drop it here, paste it with Ctrl+V, or choose the file.</p>'
+    $('impBody').innerHTML = '<p class="gnote">In the game open <b>Menu \u203a History</b>, press a hunt in the list, open the <b>Per character</b> tab and press <b>Preset</b> on each class panel (the button then says Stats). Take one full screenshot of that screen, then drop it here, paste it with Ctrl+V, or choose the file.</p>'
       + '<label class="impdrop" for="impFile">Drop a screenshot here, or press Ctrl+V<span>or click to choose a file</span></label><input type="file" id="impFile" accept="image/*" hidden><p class="gnote" id="impMsg"></p>'
       + '<p class="gnote">Works best with a clean, full-size screenshot (any size). Photos taken of a monitor with a phone are too blurry to read. You review everything before it is saved.</p>';
   }
@@ -3663,7 +3778,7 @@
     if (!IMPM.cols) return; const hunt = hunts[IMPM.hunt] ? IMPM.hunt : '', cu = {};
     IMPM.cols.forEach((col) => {
       const c = newCu(col.voc);
-      c.health = { n: col.hp.pick || c.health.n, t: col.hp.t || 30 }; c.mana = col.mp.pick ? { n: col.mp.pick, t: col.mp.t || 30 } : { n: '', t: 30 };
+      c.health = { n: col.hp.pick || c.health.n, t: col.hp.t || (col.hp.off ? 0 : 30) }; c.mana = col.mp.pick ? { n: col.mp.pick, t: col.mp.off && !col.mp.t ? 0 : (col.mp.t || 30) } : { n: '', t: 30 }; if (col.ammo && col.ammo.pick) c.ammo = col.ammo.pick;
       c.atk = [0, 1, 2, 3].map((i) => (col.atk[i] && col.atk[i].pick) || ''); c.min = {}; col.atk.forEach((x) => { if (x.pick && x.t >= 1) c.min[x.pick] = Math.min(8, Math.round(x.t)); });
       c.def = [0, 1, 2, 3].map((i) => ({ n: (col.def[i] && col.def[i].pick) || '', t: (col.def[i] && col.def[i].t) || 50 }));
       c.sup = [0, 1, 2].map((i) => (col.sup[i] && col.sup[i].pick) || ''); cu[col.voc] = c;
