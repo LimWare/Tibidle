@@ -2276,12 +2276,14 @@
   const socksFor = (slot) => Object.keys(SOCK).filter((k) => k !== 'skill' && (SOCK[k][1] === 'b' || SOCK[k][1] === (slot === 'weapon' || slot === 'neck' ? 'o' : 'd')));
   const sockHint = (k, pot) => { const r = SOCK[k][2][BANDS.indexOf(bandOf(pot))]; return r[0] === r[1] ? String(r[0]) : r[0] + ' to ' + r[1]; };
   const rowsOf = (d) => { if (d.rarity !== undefined && d.rarity !== '') return Math.max(0, Math.min(5, num(d.rarity))); let n = 0; (d.attrs || []).forEach((a, i) => { if (a && a.k) n = i + 1; }); return n; };
+  // tier: +4% per tier on every socket line (game shows e.g. 4.1 +0.2, 244 +10 at tier 1)
+  const tierAdd = (v, tier, k) => { v = num(v); const t = num(tier); if (!t || !v) return 0; if (/^skill|^shield$/.test(k || '')) return t >= 5 ? 1 : 0; if (k === 'maxhp' || k === 'maxmp' || k === 'cap') return Math.ceil(v * 0.04 * t - 1e-9); const dec = String(v).indexOf('.') >= 0 ? 1 : 0, f = Math.pow(10, dec); return Math.round(v * 0.04 * t * f) / f; };
   function buildTotals(voc) {
     const t = {}; const g = G[voc];
     Object.keys(g.slots).forEach((sl) => {
       const d = g.slots[sl]; if (!d || !SLOTOK[voc][sl]) return;
       const n = rowsOf(d);
-      (d.attrs || []).slice(0, n).forEach((a) => { if (a && a.k && SOCK[a.k]) t[a.k] = (t[a.k] || 0) + num(a.v); });
+      (d.attrs || []).slice(0, n).forEach((a) => { if (a && a.k && SOCK[a.k]) t[a.k] = Math.round(((t[a.k] || 0) + num(a.v) + tierAdd(a.v, d.tier, a.k)) * 100) / 100; });
       (d.base || []).forEach((a) => { if (a && a.k) t[a.k] = (t[a.k] || 0) + num(a.v); });
     });
     Object.keys(t).forEach((k) => { if (SOCK[k] && SOCK[k][3]) t[k] = Math.min(t[k], SOCK[k][3]); });
@@ -3042,16 +3044,17 @@
   function gearTip(d, sl, voc) {
     const e = EQN[d.item] || {}, n = rowsOf(d), col = RARCOL[n], slotName = (SLOTS.find((x) => x[0] === sl) || [0, sl])[1];
     const row = (a, b, c) => '<div class="gtr"><span>' + a + '</span><b' + (c ? ' style="color:' + c + '"' : '') + '>' + b + '</b></div>';
-    let h = '<div class="gth"><div><div class="gtn" style="color:' + col + '">' + esc(d.item) + '</div><span class="gtb">' + esc(slotName) + '</span></div>' + eqImg(d.item, 'gti') + '</div>';
+    let h = '<div class="gth"><div><div class="gtn" style="color:' + col + '">' + esc(d.item) + (num(d.refine) ? ' <span style="color:#9ab8ff">+' + num(d.refine) + '</span>' : '') + '</div><span class="gtb">' + esc(slotName) + '</span>' + (num(d.tier) ? '<span class="gtb" style="margin-left:6px;color:#e8b84a;border:1px solid #8a6a1c;background:#2a210c">◆ TIER ' + num(d.tier) + '</span>' : '') + '</div>' + eqImg(d.item, 'gti') + '</div>';
     const base = [];
-    if (e.atk) base.push(row('Attack', e.atk)); if (e.def) base.push(row('Defense', e.def)); if (e.arm) base.push(row('Armor', e.arm)); if (e.lv) base.push(row('Required level', e.lv));
+    if (e.atk) base.push(row('Attack', e.atk + (num(d.tier) ? ' <em style="color:#e8b84a;font-style:normal">+' + num(d.tier) + '</em>' : ''))); if (e.def) base.push(row('Defense', e.def)); if (e.arm) base.push(row('Armor', e.arm + (num(d.refine) ? ' <em style="color:#9ab8ff;font-style:normal">+' + num(d.refine) + '</em>' : '') + (num(d.tier) ? ' <em style="color:#e8b84a;font-style:normal">+' + num(d.tier) + '</em>' : ''))); if (e.lv) base.push(row('Required level', e.lv));
     if (base.length) h += '<div class="gts">' + base.join('') + '</div>';
-    const mid = [row('Rarity', RARITY[n], col)]; if (num(d.tier)) mid.push(row('Tier', num(d.tier))); if (num(d.refine)) mid.push(row('Refinement', '+' + num(d.refine)));
+    const mid = [row('Rarity', RARITY[n], col)]; if (num(d.potency)) mid.push(row('Potency', num(d.potency) + (num(d.tier) ? ' ' + '<em style="color:#e8b84a;font-style:normal">+' + 5 * num(d.tier) + '</em>' : '')));
     h += '<div class="gts">' + mid.join('') + '</div>';
+    if (num(d.tier)) { const t = num(d.tier), g = '#e8b84a', tb = [row('Potency', '+' + 5 * t, g), row(e.atk ? 'Attack' : 'Armor', '+' + t, g), row('Percentage lines', '+' + 4 * t + '%', g)]; h += '<div class="gts" style="background:#17140c;border:1px solid #3a3017;border-radius:6px;padding:6px 8px;margin:6px 0"><div class="gtl" style="color:' + g + '">Tier <span style="color:' + g + '">' + '◆'.repeat(t) + '<i style="color:#555">' + '◆'.repeat(Math.max(0, 5 - t)) + '</i> &nbsp;' + t + ' / 5</span></div>' + tb.join('') + '</div>'; }
     if (e.w !== undefined || e.im) { const ex = []; if (e.im) ex.push('<div class="gtl">Imbuements <span>0 / ' + e.im + ' · Temporary</span></div>' + Array.from({ length: e.im }, () => '<div class="gtr"><span>□ Empty slot</span></div>').join('')); if (e.w !== undefined) ex.push(row('Weight', Number(e.w).toFixed(2) + ' oz')); h += '<div class="gts">' + ex.join('') + '</div>'; }
     const sk = (d.attrs || []).slice(0, n).filter((a) => a && a.k && SOCK[a.k]), bs0 = (d.base || []).filter((a) => a && a.k && SOCK[a.k]), ibb = ITEMBASE[d.item] && ITEMBASE[d.item].base, bs = bs0.length ? bs0 : (ibb || []).filter((a) => a && a.k && SOCK[a.k]);
     if (bs.length) h += '<div class="gts"><div class="gtl">Base bonus</div>' + bs.map((a) => { const lb = SOCK[a.k][0], v = num(a.v); return row(esc(lb), (v > 0 ? '+' : '') + v + (lb.indexOf('%') >= 0 ? '%' : ''), v < 0 ? '#e0504a' : ''); }).join('') + '</div>';
-    if (n) h += '<div class="gts"><div class="gtl">Sockets <span>' + sk.length + ' / ' + n + '</span></div>' + (sk.length ? sk.map((a) => '<div class="gtr"><span><i style="background:' + col + '"></i>' + esc(SOCK[a.k][0]) + '</span><b>+' + num(a.v) + '</b></div>').join('') : '<div class="gtr"><span>Empty sockets</span></div>') + '</div>';
+    if (n) h += '<div class="gts"><div class="gtl">Sockets <span>' + sk.length + ' / ' + n + '</span></div>' + (sk.length ? sk.map((a) => '<div class="gtr"><span><i style="background:' + col + '"></i>' + esc(SOCK[a.k][0]) + '</span><b>+' + num(a.v) + (SOCK[a.k][0].indexOf('%') >= 0 ? '%' : '') + (tierAdd(a.v, d.tier, a.k) ? ' <em style="color:#e8b84a;font-style:normal">+' + tierAdd(a.v, d.tier, a.k) + (SOCK[a.k][0].indexOf('%') >= 0 ? '%' : '') + '</em>' : '') + '</b></div>').join('') : '<div class="gtr"><span>Empty sockets</span></div>') + '</div>';
     const vm = VOCMAP[d.item], who = !vm || vm === 'A' ? 'All vocations' : VOCS.filter((x) => vm.includes(x === 'Sorcerer' ? 'S' : x[0])).map((x) => x + 's').join(', ');
     return h + '<div class="gtf">Equipped by: <b>' + esc(who) + '</b></div>';
   }
